@@ -4,19 +4,12 @@ frameworkVersion: ">=1.1.0 <2.0.0"
 
 provider:
   name: aws
+  region: ${file(./serverless.env.yml):${opt:stage}.AWS_REGION}
   runtime: nodejs10.x
+  versionFunctions: false
   environment:
-    DYNAMODB_TABLE: ${self:service}-${opt:stage, self:provider.stage}
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.DYNAMODB_TABLE}"
+    DYNAMODB_TABLE: ${file(./serverless.env.yml):${opt:stage}.DYNAMODB_TABLE}
+  role: DynamoDBAccessRole
 
 functions:
   create:
@@ -76,4 +69,32 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
-        TableName: ${self:provider.environment.DYNAMODB_TABLE}
+        TableName: ${file(./serverless.env.yml):${opt:stage}.DYNAMODB_TABLE}
+    
+    DynamoDBAccessRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: DynamoDBAccessRole-${opt:stage}
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: "lambda.amazonaws.com"
+              Action: "sts:AssumeRole"
+        Policies:
+          - PolicyName: LambdaDynamoDBAccess-${opt:stage}
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Action:  
+                    - dynamodb:Query
+                    - dynamodb:Scan
+                    - dynamodb:GetItem
+                    - dynamodb:PutItem
+                    - dynamodb:UpdateItem
+                    - dynamodb:DeleteItem
+                  Effect: "Allow"
+                  Resource:
+                    - "arn:aws:dynamodb:${file(./serverless.env.yml):${opt:stage}.AWS_REGION}:${file(./serverless.env.yml):${opt:stage}.AWS_ACCOUNT_ID}:table/${file(./serverless.env.yml):${opt:stage}.DYNAMODB_TABLE}"
+                    - "arn:aws:dynamodb:${file(./serverless.env.yml):${opt:stage}.AWS_REGION}:${file(./serverless.env.yml):${opt:stage}.AWS_ACCOUNT_ID}:table/${file(./serverless.env.yml):${opt:stage}.DYNAMODB_TABLE}/*"
